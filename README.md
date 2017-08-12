@@ -1,5 +1,3 @@
 # CS294
 
-sudo docker run -v $(pwd)/homework:/notebooks -it gcr.io/tensorflow/tensorflow bash
-
-
+sudo nvidia-docker run -v $(pwd)/homework:/notebooks -it gcr.io/tensorflow/tensorflow:latest-gpu bash
