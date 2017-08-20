@@ -128,7 +128,12 @@ def learn(env,
     ######
     
     # YOUR CODE HERE
-
+    current_q_func = q_func(obs_t_float, num_actions, scope="q_func", reuse=False)
+    target_q_func = q_func(obs_tp1_float, num_actions, scope="target_q_func", reuse=False)
+    q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='q_func')
+    target_q_func_vars = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='target_q_func')
+    y = rew_t_ph + gamma*tf.reduce_max(target_q_func)
+    total_error = (y - current_q_func)**2
     ######
 
     # construct optimization op (with gradient clipping)
@@ -195,6 +200,15 @@ def learn(env,
         #####
         
         # YOUR CODE HERE
+        replay_buffer.store_frame(last_obs)
+        currnet_input = replay_buffer.encode_recent_observation()
+        current_action = tf.argmax(target_q_func.eval(feed_dict={img_in: currnet_input}))
+        last_obs, reward, done, info = env.step(current_action)
+        if done:
+            last_obs = env.reset()
+
+        action 
+        pass
 
         #####
 
@@ -245,6 +259,7 @@ def learn(env,
             #####
             
             # YOUR CODE HERE
+            pass
 
             #####
 
