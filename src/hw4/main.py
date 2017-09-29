@@ -95,22 +95,40 @@ class LinearValueFunction(object):
         return np.concatenate([np.ones([X.shape[0], 1]), X, np.square(X)/2.0], axis=1)
 
 class NnValueFunction(object):
-    def __init__(self, ob_dim):
-        self.sy_ob_no_v = tf.placeholder(shape=[None, ob_dim], name="ob_v", dtype=tf.float32)
-        self.sy_h1_v = lrelu(dense(self.sy_ob_no_v, 32, "h1_v", weight_init=normc_initializer(1.0))) # hidden layer
-        self.sy_n = tf.shape(self.sy_ob_no_v)[0]
-        self.sy_value_ho = dense(self.sy_h1_v, self.sy_n, "final_v", weight_init=normc_initializer(0.1)) # Mean control output
-        self.y = tf.placeholder(shape=[None], name="ob_v", dtype=tf.float32)
-        self.sy_loss = tf.nn.l2_loss((self.y-self.sy_value_ho))
-        self.update_op_v = tf.train.AdamOptimizer(1e-3).minimize(self.sy_loss)
-        self.sess = tf.Session()
-        self.sess.__enter__() # equivalent to `with sess:`
-        tf.global_variables_initializer().run() #pylint: disable=E1101
+    def __init__(self, ob_dim, n_epochs, stepsize):
+        self.net = None
+        self.n_epochs = n_epochs
+        self.stepsize = stepsize-1
+        self.ob_dim = ob_dim
+    
+    def init_net(self):
+        self.sy_x = tf.placeholder(tf.float32, shape=[None, self.ob_dim], name="x_vf")
+        self.sy_y = tf.placeholder(tf.float32, shape=[None], name="y_vf")
+        h1 = lrelu(dense(self.sy_x, 32, 'h1_vf', tf.random_uniform_initializer(-1.0, 1.0)))
+        h2 = lrelu(dense(h1, 16, 'h2_vf', tf.random_uniform_initializer(-1.0, 1.0)))
+        self.net = dense(h2, 1, 'out_vf', tf.random_uniform_initializer(-0.1, 0.1))
+        loss = tf.square(self.net - self.sy_y)
+        self.train = tf.train.AdamOptimizer(self.stepsize).minimize(loss)
+        self.sess = tf.get_default_session()
+        self.sess.run(tf.initialize_all_variables())
+
+    def preproc(self, X):
+        return np.concatenate([np.ones([X.shape[0], 1]), X, np.square(X)/2.0], axis=1)
 
     def fit(self, X, y):
-        _ = self.sess.run([self.update_op], feed_dict={self.sy_ob_no_v:X, self.y:Y})
+        featmat = self.preproc(X)
+        if self.net is None:            
+            self.ob_dim = featmat.shape[1]
+            self.init_net()
+        for _ in range(self.n_epochs):
+            self.sess.run(self.train, {self.sy_x: featmat, self.sy_y: y})
+
     def predict(self, X):
-        return self.sess.run([self.sy_value_ho], feed_dict={self.sy_ob_no_v:X, self.y:Y})
+        if self.net is None:
+            return np.zeros(X.shape[0])
+        else:
+            ret = self.sess.run(self.net, {self.sy_x: self.preproc(X)})
+            return np.reshape(ret, (ret.shape[0],))
 
 def lrelu(x, leak=0.2):
     f1 = 0.5 * (1 + leak)
@@ -361,7 +379,7 @@ def main_pendulum1(d):
 if __name__ == "__main__":
     if 0:
         main_cartpole(logdir=None) # when you want to start collecting results, set the logdir
-    if 0:
+    if 1:
         general_params = dict(gamma=0.97, animate=False, min_timesteps_per_batch=2500, n_iter=300, initial_stepsize=1e-3)
         params = [
             dict(logdir='/tmp/ref/linearvf-kl2e-3-seed0', seed=0, desired_kl=2e-3, vf_type='linear', vf_params={}, **general_params),
@@ -374,6 +392,6 @@ if __name__ == "__main__":
         import multiprocessing
         p = multiprocessing.Pool()
         p.map(main_pendulum1, params)
-    if 1:
+    if 0:
         general_params = dict(gamma=0.97, animate=True, min_timesteps_per_batch=2500, n_iter=300, initial_stepsize=1e-3)
-        main_pendulum1(dict(logdir='/tmp/ref/linearvf-kl2e-3-seed0', seed=0, desired_kl=2e-3, vf_type='linear', vf_params={}, **general_params))
+        main_pendulum1(dict(logdir='/tmp/ref/linearvf-kl2e-3-seed0', seed=0, desired_kl=2e-3, vf_type='nn', vf_params={}, **general_params))
